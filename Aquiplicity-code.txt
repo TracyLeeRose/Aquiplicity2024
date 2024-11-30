@@ -1,0 +1,158 @@
+// Aquiplicity2024 by Tracy Rose
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/features2d.hpp>
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <deque>
+
+using namespace cv;
+
+// Global variables
+Mat img_master;                   // The master image (final merged output)
+Mat img_base;                     // The base image
+std::vector<Mat> images_stack;    // List of images for patching
+std::deque<Point> lasso_points;   // Points defining the lasso
+bool drawing_lasso = false;       // Flag to indicate lasso drawing
+
+// Calculate the absolute color difference between two regions
+double calculateRegionDifference(const Mat& img1, const Mat& img2, const Rect& region) {
+    Mat roi1 = img1(region);
+    Mat roi2 = img2(region);
+    Mat diff;
+    absdiff(roi1, roi2, diff);
+    Scalar sum_diff = sum(diff);
+    return sum_diff[0] + sum_diff[1] + sum_diff[2];
+}
+
+// Mouse callback for lasso-based patching
+//  TracyRose
+void mouseCallback(int event, int x, int y, int flags, void* userdata) {
+    if (event == EVENT_LBUTTONDOWN) {
+        // Start drawing the lasso
+        drawing_lasso = true;
+        lasso_points.clear();
+        lasso_points.push_back(Point(x, y));
+    }
+    else if (event == EVENT_MOUSEMOVE && drawing_lasso) {
+        // Add points to the lasso while drawing
+        lasso_points.push_back(Point(x, y));
+        Mat temp_img = img_master.clone();
+        for (size_t i = 1; i < lasso_points.size(); ++i) {
+            line(temp_img, lasso_points[i - 1], lasso_points[i], Scalar(0, 255, 0), 2);
+        }
+        imshow("Master Image", temp_img);
+    }
+    else if (event == EVENT_LBUTTONUP) {
+        // Finish drawing the lasso
+        drawing_lasso = false;
+
+        if (lasso_points.size() < 3) {
+            std::cout << "Lasso region is too small!" << std::endl;
+            return;
+        }
+
+        // Convert lasso points to a vector and bounding rectangle
+        std::vector<Point> lasso_vector(lasso_points.begin(), lasso_points.end());
+        Rect bounding_rect = boundingRect(lasso_vector);
+        bounding_rect &= Rect(0, 0, img_master.cols, img_master.rows); // Ensure within bounds
+
+        if (bounding_rect.area() <= 0) {
+            std::cout << "Invalid lasso bounding rectangle!" << std::endl;
+            return;
+        }
+
+        // Find the best-matching image from the stack
+        double min_diff = DBL_MAX;
+        int best_image_index = -1;
+        for (int i = 0; i < images_stack.size(); ++i) {
+            Mat& candidate_img = images_stack[i];
+            if (bounding_rect.width > candidate_img.cols || bounding_rect.height > candidate_img.rows) {
+                continue;
+            }
+            double diff = calculateRegionDifference(img_master, candidate_img, bounding_rect);
+            if (diff < min_diff) {
+                min_diff = diff;
+                best_image_index = i;
+            }
+        }
+
+        // Update the master image with the best-matching region
+        if (best_image_index != -1) {
+            Mat& best_image = images_stack[best_image_index];
+            Mat roi_best = best_image(bounding_rect);
+            roi_best.copyTo(img_master(bounding_rect));
+            imshow("Master Image", img_master);
+        }
+        else {
+            std::cout << "No suitable match found for lasso selection!" << std::endl;
+        }
+    }
+}
+
+// Process and merge images into the master image
+void processImage(const std::string& filename, const Mat& img_base, Mat& img_master) {
+    Mat img = imread(filename);
+    if (img.empty()) {
+        return;
+    }
+
+    // Resize to match the base image dimensions if necessary
+    if (img.size() != img_base.size()) {
+        resize(img, img, img_base.size());
+    }
+
+    // Add differences from the new image into the master image
+    for (int y = 0; y < img_base.rows; ++y) {
+        for (int x = 0; x < img_base.cols; ++x) {
+            Vec3b pixel_base = img_base.at<Vec3b>(y, x);
+            Vec3b pixel_img = img.at<Vec3b>(y, x);
+
+            int diff_b = std::abs(pixel_base[0] - pixel_img[0]);
+            int diff_g = std::abs(pixel_base[1] - pixel_img[1]);
+            int diff_r = std::abs(pixel_base[2] - pixel_img[2]);
+            int max_diff = std::max({ diff_b, diff_g, diff_r });
+
+            if (max_diff > 0.13 * 255) { // Threshold for pixel difference
+                img_master.at<Vec3b>(y, x) = pixel_img;
+            }
+        }
+    }
+}
+
+int main() {
+    img_base = imread("image0.jpg");
+    if (img_base.empty()) {
+        std::cerr << "Error: Could not load the base image." << std::endl;
+        return -1;
+    }
+
+    img_master = img_base.clone(); // Start with a clone of the base image
+    images_stack.push_back(img_base);
+
+    // Load additional images into the stack
+    for (int i = 1;; ++i) {
+        std::string filename = "image" + std::to_string(i) + ".jpg";
+        Mat img = imread(filename);
+        if (img.empty()) break;
+        if (img.size() != img_base.size()) resize(img, img, img_base.size());
+        images_stack.push_back(img);
+        processImage(filename, img_base, img_master);
+    }
+
+    // Display and set mouse callback
+    namedWindow("Master Image", WINDOW_NORMAL);
+    setMouseCallback("Master Image", mouseCallback);
+    imshow("Master Image", img_master);
+    waitKey(0);
+
+    // Save the final master image
+    imwrite("repaired_master.jpg", img_master);
+    return 0;
+}
