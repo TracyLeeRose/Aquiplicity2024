@@ -42,6 +42,10 @@ WHERE USERS GET HELP WITH THIS IDEA:
 Email me at aquiline.photos@gmail.com for any comments or questions.  It may take a while
 for a reply.  Be patient.
 
+Once you have extracted this into a folder for use, scan it for safety as always but 
+be sure to tell your virus checker it's a safe file for future scans.  My virus checker 
+hates floating EXE files in the system. 
+
 MAINTAINED BY
 
 Enjoy !
