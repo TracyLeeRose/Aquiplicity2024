@@ -3,6 +3,10 @@ Aquiplicity (multiplicity image stacker)
 
 This is a scaled down version of Aquiplicity I'm playing with in 2024 (no GUI)
 
+++ MSI is full system install that runs
+++ ZIP file will be a non install but larger due to no compression
+++ Code available to play with
+
 The program is c++ for visual studios and uses OpenCV made by intel for graphics
 
 WHAT PROJECT DOES:
@@ -32,9 +36,16 @@ making actors appear many times in the same image.
 
 HOW USERS GET STARTED:
 This is just the C++ code from my visual studios.  Also for source, you need to
-install OpenCV from Intel or install.  If using the MSI install it's all given.
+install OpenCV from Intel or install.  
+
+If just running it via using the MSI install it's all given with support files.
+The file after install will go into program files on your C-drive under 
+"Default Company Name" .  As you click on it the program may be small and need
+maximized.  Remember to hold the control key if you want to "lasso" some pixels.
+
 All images such as image0.jpg  image1.jpg image2.jpg must go into the working
-directory of the program.  Image0.jpg is the baseline for the master image.
+directory of the program should you create your own.  Image0.jpg is the baseline
+for the master image.
 
 ++ when using the MSI install for ALL USERS so it gets permissions needed
 
